@@ -1,0 +1,314 @@
+version: '3.8'
+
+services:
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:1.24-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./nginx/www:/var/www
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    depends_on:
+      - frontend
+      - api-gateway
+    restart: always
+    networks:
+      - nexus-network
+
+  # Certbot for SSL
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - nexus-network
+
+  # Frontend application
+  frontend:
+    image: nexus-solar-platform/frontend:${TAG:-latest}
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.prod
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=https://nexus.gonxt.tech/api/v1
+    restart: always
+    networks:
+      - nexus-network
+
+  # API Gateway
+  api-gateway:
+    image: nexus-solar-platform/api-gateway:${TAG:-latest}
+    build:
+      context: ../api-gateway
+      dockerfile: Dockerfile.prod
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET}
+      - BACKEND_SERVICE=http://backend:4000
+      - AI_SERVICE=http://ai-services:5000
+      - BLOCKCHAIN_SERVICE=http://blockchain-services:6000
+      - EDGE_SERVICE=http://edge-computing:7000
+      - LOG_LEVEL=info
+    restart: always
+    depends_on:
+      - backend
+      - ai-services
+      - blockchain-services
+      - edge-computing
+    networks:
+      - nexus-network
+
+  # Backend services
+  backend:
+    image: nexus-solar-platform/backend:${TAG:-latest}
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.prod
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=1h
+      - JWT_REFRESH_EXPIRES_IN=7d
+      - DATABASE_URL=postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=info
+    restart: always
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - nexus-network
+
+  # AI services
+  ai-services:
+    image: nexus-solar-platform/ai-services:${TAG:-latest}
+    build:
+      context: ../ai-services
+      dockerfile: Dockerfile.prod
+    environment:
+      - ENVIRONMENT=production
+      - PORT=5000
+      - JWT_SECRET=${JWT_SECRET}
+      - DATABASE_URL=postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      - REDIS_URL=redis://redis:6379
+      - MODEL_PATH=/app/models
+      - LOG_LEVEL=info
+    volumes:
+      - ai-models:/app/models
+    restart: always
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - nexus-network
+
+  # Blockchain services
+  blockchain-services:
+    image: nexus-solar-platform/blockchain-services:${TAG:-latest}
+    build:
+      context: ../blockchain-services
+      dockerfile: Dockerfile.prod
+    environment:
+      - NODE_ENV=production
+      - PORT=6000
+      - JWT_SECRET=${JWT_SECRET}
+      - BLOCKCHAIN_PROVIDER_URL=${BLOCKCHAIN_PROVIDER_URL}
+      - CONTRACT_ADDRESS=${CONTRACT_ADDRESS}
+      - WALLET_PRIVATE_KEY=${WALLET_PRIVATE_KEY}
+      - DATABASE_URL=postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      - LOG_LEVEL=info
+    restart: always
+    depends_on:
+      - postgres
+    networks:
+      - nexus-network
+
+  # Edge computing services
+  edge-computing:
+    image: nexus-solar-platform/edge-computing:${TAG:-latest}
+    build:
+      context: ../edge-computing
+      dockerfile: Dockerfile.prod
+    environment:
+      - NODE_ENV=production
+      - PORT=7000
+      - JWT_SECRET=${JWT_SECRET}
+      - DATABASE_URL=postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=info
+    restart: always
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - nexus-network
+
+  # PostgreSQL database
+  postgres:
+    image: timescale/timescaledb:latest-pg15
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d
+    restart: always
+    networks:
+      - nexus-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis cache
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+    restart: always
+    networks:
+      - nexus-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # RabbitMQ message queue
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    restart: always
+    networks:
+      - nexus-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Prometheus monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    restart: always
+    networks:
+      - nexus-network
+
+  # Grafana dashboard
+  grafana:
+    image: grafana/grafana:latest
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    restart: always
+    depends_on:
+      - prometheus
+    networks:
+      - nexus-network
+
+  # Elasticsearch for logging
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.10.4
+    environment:
+      - node.name=elasticsearch
+      - cluster.name=nexus-es-cluster
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    restart: always
+    networks:
+      - nexus-network
+
+  # Kibana for log visualization
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.10.4
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    restart: always
+    depends_on:
+      - elasticsearch
+    networks:
+      - nexus-network
+
+  # Filebeat for log shipping
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.10.4
+    volumes:
+      - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    user: root
+    restart: always
+    depends_on:
+      - elasticsearch
+    networks:
+      - nexus-network
+
+  # Backup service
+  backup:
+    image: postgres:15-alpine
+    volumes:
+      - ./backup:/backup
+      - ./backup/scripts:/scripts
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - BACKUP_RETENTION_DAYS=30
+    entrypoint: /scripts/backup.sh
+    restart: always
+    depends_on:
+      - postgres
+    networks:
+      - nexus-network
+
+volumes:
+  postgres-data:
+  redis-data:
+  rabbitmq-data:
+  prometheus-data:
+  grafana-data:
+  elasticsearch-data:
+  ai-models:
+
+networks:
+  nexus-network:
+    driver: bridge
