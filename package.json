@@ -1,0 +1,52 @@
+{
+  "name": "nexus-solar-platform",
+  "version": "0.1.0",
+  "description": "Advanced multi-tenant solar energy management platform",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend",
+    "api-gateway"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:api-gateway\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:api-gateway": "cd api-gateway && npm run dev",
+    "build": "npm run build:backend && npm run build:frontend && npm run build:api-gateway",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "build:api-gateway": "cd api-gateway && npm run build",
+    "test": "npm run test:backend && npm run test:frontend && npm run test:api-gateway",
+    "test:backend": "cd backend && npm test",
+    "test:frontend": "cd frontend && npm test",
+    "test:api-gateway": "cd api-gateway && npm test",
+    "lint": "npm run lint:backend && npm run lint:frontend && npm run lint:api-gateway",
+    "lint:backend": "cd backend && npm run lint",
+    "lint:frontend": "cd frontend && npm run lint",
+    "lint:api-gateway": "cd api-gateway && npm run lint",
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md}\"",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.1.1"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "author": "Nexus Solar Team",
+  "license": "UNLICENSED"
+}
