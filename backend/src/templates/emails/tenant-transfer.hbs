@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Account Has Been Transferred</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .header {
+      background-color: #0047AB;
+      padding: 20px;
+      text-align: center;
+    }
+    .header img {
+      max-width: 200px;
+    }
+    .content {
+      padding: 20px;
+      background-color: #fff;
+    }
+    .footer {
+      background-color: #f5f5f5;
+      padding: 20px;
+      text-align: center;
+      font-size: 12px;
+      color: #666;
+    }
+    .button {
+      display: inline-block;
+      background-color: #0047AB;
+      color: #ffffff !important;
+      text-decoration: none;
+      padding: 12px 24px;
+      border-radius: 4px;
+      margin: 20px 0;
+      font-weight: bold;
+    }
+    .info-box {
+      background-color: #f9f9f9;
+      border-left: 4px solid #0047AB;
+      padding: 15px;
+      margin: 20px 0;
+    }
+    h1 {
+      color: #0047AB;
+      margin-top: 0;
+    }
+    h2 {
+      color: #0047AB;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="https://nexus.gonxt.tech/images/logo-white.png" alt="Nexus Solar Platform">
+    </div>
+    
+    <div class="content">
+      <h1>Account Transfer Notification</h1>
+      
+      <p>Hello {{firstName}},</p>
+      
+      <p>We're writing to inform you that your account has been transferred from <strong>{{sourceTenantName}}</strong> to <strong>{{destTenantName}}</strong> effective {{transferDate}}.</p>
+      
+      <div class="info-box">
+        <h2>Transfer Details:</h2>
+        <p><strong>From:</strong> {{sourceTenantName}}</p>
+        <p><strong>To:</strong> {{destTenantName}}</p>
+        <p><strong>Your Role:</strong> {{role}}</p>
+        <p><strong>Effective Date:</strong> {{transferDate}}</p>
+      </div>
+      
+      <p>Your account credentials remain the same, but you will now have access to {{destTenantName}}'s solar assets and data. The next time you log in, you'll be directed to your new tenant's dashboard.</p>
+      
+      <p>If you have any questions about this transfer or need assistance with your new access, please contact your administrator or our support team.</p>
+      
+      <a href="{{loginLink}}" class="button">Log In Now</a>
+      
+      <p>Thank you for using Nexus Solar Platform!</p>
+      
+      <p>Best regards,<br>
+      The Nexus Solar Platform Team</p>
+    </div>
+    
+    <div class="footer">
+      <p>© {{year}} Nexus Solar Platform. All rights reserved.</p>
+      <p>This is an automated message, please do not reply to this email.</p>
+    </div>
+  </div>
+</body>
+</html>
